@@ -14,6 +14,13 @@ export const ACTIONS = {
 function reducer(state, { type, payload }) {
     switch(type){
         case ACTIONS.ADD:
+            if(state.overwrite){
+                return{
+                    ...state,
+                    currentOperand: payload.number,
+                    overwrite: false
+                }
+            }
             // stop multiple zeros
             if (payload.number === '.' && state.currentOperand.includes('.')) return state
 
@@ -22,8 +29,14 @@ function reducer(state, { type, payload }) {
                 currentOperand: `${state.currentOperand || ""}${payload.number}`
             }
         case ACTIONS.OPERATION:
-            console.log(state.previousOperand)
             if(state.currentOperand === undefined && state.previousOperand === undefined) return state;
+
+            if(state.currentOperand === undefined){
+                return{
+                    ...state,
+                    operation: payload.operation
+                }
+            }
 
             if(state.previousOperand === undefined){
                 return{
@@ -39,6 +52,40 @@ function reducer(state, { type, payload }) {
                 previousOperand: evaluate(state),
                 operation: payload.operation,
                 currentOperand: undefined,
+            }
+        case ACTIONS.EVALUATE:
+            if(state.currentOperand === undefined || state.previousOperand === undefined || state.operation === undefined){
+                return state;
+            }
+
+            return{
+                ...state,
+                overwrite: true,
+                previousOperand: undefined,
+                operation: undefined,
+                currentOperand: evaluate(state)
+            }
+        case ACTIONS.DELETE:
+            if(state.overwrite){
+                return{
+                    ...state,
+                    overwrite: false,
+                    currentOperand: undefined
+                }   
+            }
+
+            if(state.currentOperand === undefined) return state
+
+            if(state.currentOperand.length === 1){
+                return{
+                    ...state,
+                    currentOperand: undefined,
+                }
+            }
+
+            return{
+                ...state,
+                currentOperand: state.currentOperand.slice(0, -1)
             }
         case ACTIONS.CLEAR:
             return {}
@@ -73,6 +120,19 @@ const evaluate = ({ currentOperand, previousOperand, operation }) => {
     return result.toString()
 }
 
+const FORMAT_INTEGER = new Intl.NumberFormat("en-us", {
+    maximumFractionDigits: 0
+})
+
+function formatOperand(operand){
+    if(operand === undefined) return;
+
+    const [integer, decimal] = operand.split('.');
+
+    if(decimal === undefined) return FORMAT_INTEGER.format(integer)
+    return `${FORMAT_INTEGER.format(integer)}.${decimal}`
+}
+
 function App() {
     const [{ currentOperand, previousOperand, operation }, dispatch] = useReducer(reducer, {});
 
@@ -81,12 +141,11 @@ function App() {
         <div className="calc-grid">
             {/* output of calculator */}
             <div className="output">
-                <div className="prev-operand">{previousOperand}</div>
-                <div className="curr-operand">{currentOperand}</div>
+                <div className="curr-operand">{formatOperand(previousOperand)} {operation} {formatOperand(currentOperand)}</div>
             </div>
             {/* calculator buttons */}
             <button className="span-two" onClick={() => dispatch({type: ACTIONS.CLEAR})}>AC</button>
-            <button onClick={() => dispatch({type: ACTIONS.DELETE, payload: currentOperand})}>DEL</button>
+            <button onClick={() => dispatch({type: ACTIONS.DELETE})}>DEL</button>
             <OperationButton operation={'/'} dispatch={dispatch} />
             <NumberButton number={'1'} dispatch={dispatch} />
             <NumberButton number={'2'} dispatch={dispatch} />
@@ -102,7 +161,7 @@ function App() {
             <OperationButton operation={'+'} dispatch={dispatch} />
             <NumberButton number={'.'} dispatch={dispatch} />
             <NumberButton number={'0'} dispatch={dispatch} />
-            <button className="span-two operation">=</button>
+            <button onClick={() => dispatch({type: ACTIONS.EVALUATE})} className="span-two operation">=</button>
         </div>
     </div>
   );
